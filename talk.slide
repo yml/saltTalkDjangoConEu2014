@@ -8,8 +8,8 @@ Yann Malet
 * About Yann Malet
 
 .link http://lincolnloop.com Work with Lincoln Loop 2008 Oct
-
 .link https://highperformancedjango.com  Co-author of High Performance Django
+.link http://go-talks.appspot.com/github.com/yml/saltTalkDjangoConEu2014/talk.slide Slides are at github.com/yml/saltTalkDjangoConEu2014
 
 * Today talk
 
@@ -207,10 +207,9 @@ Install a django project and all its dependencies
 
     wagtaildemo_install:
       cmd.wait:
-        - name: |
-            cd {{ pillar.paths.staging_venv }}/wagtaildemo && \
-            {{ pillar.paths.staging_venv }}/bin/pip install -e . -r requirements/deploy.txt
+        - name: {{ pillar.paths.staging_venv }}/bin/pip install -e . -r requirements/deploy.txt
         - user: wagtaildemo
+        - cwd: {{ pillar.paths.staging_venv }}/wagtaildemo
         - env:
           PIP_TIMEOUT: '60'
           PIP_LOG_FILE: {{ pillar.paths.home }}/pip.log
@@ -232,12 +231,12 @@ I have kept out of this presentation several builtin salt capabilities such as:
 - salt-cloud
 - ...
 
-A backed by a for profit organization [[http://saltstack.com/]]
+A backed by a for profit organization [[http://saltstack.com]]
 
 * What can be improved
 
 - Do not rely on external services: pypi, github
-- Use wheels -- [[http://wheel.readthedocs.org/en/latest/]]
+- Use wheels -- [[http://wheel.readthedocs.org/en/latest]]
 - Create a new fully isolated Virtualenv on every deploy 
 - Server provisioning
 - Automatically setting grains on each minion
@@ -249,6 +248,12 @@ All in one vagrant box
 - Remote execution
 - state.highstate
 
-* Coming soon
+* hpd-states
 
-.link https://highperformancedjango.com/states TBD
+*hpd-states* is a full salt package that apply all the recommendations from [[https://highperformancedjango.com]].
+
+.image img/hpd_cover_small.jpg
+
+You can use it as blueprint to create your own or as a piece of learning material.
+
+.link https://highperformancedjango.com/states hpd-states
