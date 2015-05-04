@@ -1,0 +1,254 @@
+Salt for Django Devs
+June 2015
+Tags: Salt, YAML, Jinja, Django
+
+Yann Malet
+@gwadeloop
+
+* About Yann Malet
+
+.link http://lincolnloop.com Work with Lincoln Loop 2008 Oct
+
+.link https://highperformancedjango.com  Co-author of High Performance Django
+
+* Today talk
+
+Is about :
+
+- Vocabulary
+- Building blocks to deploy a django app
+
+Is not :
+
+- a crash course on Salt
+- about writing a complete set: states, pillars, grains
+
+* vocabulary
+* vocabulary: Master
+
+    Server that manages the whole stack
+
+* vocabulary: Minion
+
+    Server controlled by the master
+
+* vocabulary: State
+
+    A declarative representation of the system state.
+
+How you want the minion to be configured
+
+* vocabulary: Pillar
+
+    Variables for one or minions
+
+Ports, File paths, configuration parameters...
+
+* vocabulary: grain
+
+    Static information about a minion
+
+RAM, CPU, OS, ...
+
+* Vocabulary: Recap
+
+.image img/salt_topo.png
+
+* vocabulary: Top file
+
+    Matches states or Pillars to a minion
+
+* Vocabulary: Highstate
+
+    Applies all state data to a minion
+
+.image img/salt_highstate.png
+
+* Building blocks
+
+* Target by roles
+
+In your top file the first decision you have to make is how to target your minions.
+
+    base:
+      '*':
+        - common
+      # The Salt Master
+      'roles:salt':
+        - match: grain
+        - salt_master
+      # Both the app and database servers need to know the database credentials
+      'G@roles:app or G@roles:db':
+        - match: compound
+        - database
+      # Varnish (the load balancer)
+      'roles:varnish':
+        - match: grain
+        - varnish
+      # App servers
+      'roles:app'
+        - match: grain
+        - wagtail
+
+* Install and run Varnish 1/2
+
+    varnish:
+      pkgrepo.managed:
+        - human_name: Varnish
+        - name:  deb https://repo.varnish-cache.org/ubuntu/ {{ grains.oscodename }} varnish-4.0
+        - file: /etc/apt/sources.list.d/varnish.list
+        - key_url: https://repo.varnish-cache.org/ubuntu/GPG-key.txt
+      file.managed:
+        - name: /etc/default/varnish
+        - source: salt://packages/varnish/default
+        - template: jinja
+        - defaults:
+            port: {{ pillar.varnish.port }}
+            memory: {{ (grains.mem_total * pillar.varnish.percent_ram / 100)|int }}
+      pkg.installed:
+        - require:
+          - pkg: apt-transport-https
+          - pkgrepo: varnish
+          - file: /etc/default/varnish
+      # ... next slide
+
+* Install and run Varnish 2/2
+
+    varnish:
+      # ... previous slide
+      pkg.installed:
+        - require:
+          - pkg: apt-transport-https
+          - pkgrepo: varnish
+          - file: /etc/default/varnish
+      service.running:
+        - enable: True
+        - reload: True
+        - require:
+          - pkg: varnish
+          - file: varnish
+        - watch:
+          - file: /etc/varnish/default.vcl
+
+
+* configure Varnish 1/2
+
+    /etc/varnish/default.vcl:
+      file.managed:
+        - template: jinja
+        - source: salt://packages/varnish/default.vcl.jinja
+        - defaults:
+          port: {{ pillar.wsgi.port }}
+          backend: {{ pillar.varnish.backend }}
+        - require:
+          - pkg: varnish
+
+
+* configure Varnish (default.vcl.jinja) 2/2
+
+    vcl 4.0;
+    import std;
+    backend default {
+        .host = "{{ backend }}";
+        .port = "{{ port }}";
+    }
+    sub vcl_recv {
+        # Happens before we check if we have this in cache already.
+        # Typically you clean up the request here, removing cookies you don't need,
+        # rewriting the request, etc.
+        if (
+            req.url ~ "^/admin" || req.http.cookie ~ "sessionid" ){
+            return (pass);
+        } else {
+            unset req.http.Cookie;
+        }
+        if (req.method == "PURGE"){
+            return(purge);
+        }
+        return (hash);
+    }
+    # ...
+
+* What did we learned ?
+
+Salt has a lot of prebuilt states:
+
+- `pkg.installed`
+- `service.running`
+
+Configuration file are generated at runtime based on a jinja template
+
+
+* Yes but I can't do this ...
+
+    cmd.run
+
+This will let you run a bash command that execute what you want this command can also be templatized
+
+    {{ pillar.paths.staging_venv }}:
+      cmd.run:
+        - name: |
+            export REV_VENV={{ pillar.paths.venvs }}/$(git rev-parse HEAD) && \
+            rm -rf $REV_VENV && mkdir -p $REV_VENV/wagtaildemo && \
+            virtualenv $REV_VENV && \
+            git archive HEAD | tar -xf - -C $REV_VENV/wagtaildemo && \
+            ln -sfn $(git rev-parse HEAD) {{ pillar.paths.staging_venv }}
+        - user: wagtaildemo
+        - unless: test $(readlink {{ pillar.paths.current_venv }}) = $(git rev-parse HEAD)
+        - cwd: {{ pillar.paths.src }}
+        - require:
+          - user: wagtaildemo
+          - cmd: virtualenv
+
+
+* How do I install a django project
+
+Install a django project and all its dependencies
+
+    wagtaildemo_install:
+      cmd.wait:
+        - name: |
+            cd {{ pillar.paths.staging_venv }}/wagtaildemo && \
+            {{ pillar.paths.staging_venv }}/bin/pip install -e . -r requirements/deploy.txt
+        - user: wagtaildemo
+        - env:
+          PIP_TIMEOUT: '60'
+          PIP_LOG_FILE: {{ pillar.paths.home }}/pip.log
+        - watch:
+          - cmd: {{ pillar.paths.staging_venv }}
+        - require:
+          - sls: packages.python-pip
+          - cmd: {{ pillar.paths.staging_venv }}
+          - pkg: wagtaildemo_prereqs
+          - file: wagtaildemo_settings
+
+* There is much more ...
+
+I have kept out of this presentation several builtin salt capabilities such as:
+
+- Reactor
+- Beacon
+- mines
+- salt-cloud
+- ...
+
+A backed by a for profit organization [[http://saltstack.com/]]
+
+* What can be improved
+
+- Do not rely on external services: pypi, github
+- Use wheels -- [[http://wheel.readthedocs.org/en/latest/]]
+- Create a new fully isolated Virtualenv on every deploy 
+- Server provisioning
+- Automatically setting grains on each minion
+
+* Demo
+
+All in one vagrant box
+
+- Remote execution
+- state.highstate
+
+* Coming soon
+
+.link https://highperformancedjango.com/states TBD
