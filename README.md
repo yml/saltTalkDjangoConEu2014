@@ -2,7 +2,7 @@
 
 ## Online
 
-[go-talk.appspot.com](http://go-talks.appspot.com/github.com/yml/saltTalkDjangoConEu2014/talk.slide) can render this slides on demand.
+[go-talk.appspot.com](http://go-talks.appspot.com/github.com/yml/saltTalkDjangoConEu2015/talk.slide) can render this slides on demand.
 
 ## Locally
 
