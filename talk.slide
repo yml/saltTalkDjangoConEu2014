@@ -11,7 +11,7 @@ Yann Malet
 .link https://highperformancedjango.com  Co-author of High Performance Django
 .link http://go-talks.appspot.com/github.com/yml/saltTalkDjangoConEu2015/talk.slide Slides are at github.com/yml/saltTalkDjangoConEu2015
 
-* Today talk
+* Agenda: Salt for django devs
 
 Is about :
 
@@ -23,32 +23,61 @@ Is not :
 - a crash course on Salt
 - about writing a complete set: states, pillars, grains
 
-* vocabulary
+* Salt vocabulary
 * vocabulary: Master
 
-    Server that manages the whole stack
+*Server*that*manages*the*whole*stack*
+
+    sudo salt "*" sys.doc
+
+
 
 * vocabulary: Minion
 
-    Server controlled by the master
+*Server*controlled*by*the*master*
+
+    sudo salt "*" test.ping
+    sudo salt -G "os:ubuntu" test.ping
+    sudo salt "*highperformance*" test.ping
+    sudo salt -G "roles:web" test.ping
 
 * vocabulary: State
 
-    A declarative representation of the system state.
+*A*declarative*representation*of*the*system*state*
 
 How you want the minion to be configured
 
+    sudo salt "*" sys.doc state
+    sudo salt "*" state.show_sls users
+    sudo salt "*" state.sls users
+    sudo salt "*" state.sls_id yml users
+    cat salt/users/init.sls
+
+
 * vocabulary: Pillar
 
-    Variables for one or minions
+*Variables*for*one*or*minions*
 
 Ports, File paths, configuration parameters...
 
-* vocabulary: grain
+    cat pillar/users.sls
+    sudo salt "*" pillar.data users
+    sudo salt "*" pillar.data wsgi
 
-    Static information about a minion
 
-RAM, CPU, OS, ...
+* vocabulary: grains
+
+*Static*information*about*a*minion*
+
+- RAM
+- CPU
+- OS
+- Role
+- ...
+
+    sudo salt "*" sys.doc grains
+    sudo salt "*" grains.item roles
+
 
 * Vocabulary: Recap
 
@@ -56,7 +85,14 @@ RAM, CPU, OS, ...
 
 * vocabulary: Top file
 
-    Matches states or Pillars to a minion
+*Matches*states*or*Pillars*to*a*minion*
+
+    base:
+      '*':
+        - users
+      'roles:varnish':
+        - match: grain
+        - packages.varnish
 
 * Vocabulary: Highstate
 
@@ -183,7 +219,7 @@ Configuration file are generated at runtime based on a jinja template
 
     cmd.run
 
-This will let you run a bash command that execute what you want this command can also be templatized
+This will let you run a bash command that executes what you want
 
     {{ pillar.paths.staging_venv }}:
       cmd.run:
@@ -220,6 +256,27 @@ Install a django project and all its dependencies
           - cmd: {{ pillar.paths.staging_venv }}
           - pkg: wagtaildemo_prereqs
           - file: wagtaildemo_settings
+
+* Debug
+
+Display the state data
+
+    sudo salt "*" state.show_sls packages.varnish
+
+Pillar data
+
+    sudo salt "*" pillar.data wsgi
+
+Grain items
+
+    sudo salt "*" grains.items hostname
+    sudo salt "*" grains.items os
+    sudo salt -t 1 "*" grains.item roles
+
+Break point
+
+    sudo vim /usr/lib/python2.7/dist-packages/salt/states/user.py
+    sudo salt-call state.sls_id yml users
 
 * There is much more ...
 
